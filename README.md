@@ -1,24 +1,36 @@
-# Hour-Calculator-SG
+# ⏰ Shubham Work Hours Tracker
 
-A Vite + React + TypeScript app for tracking work hours and planning schedules.
+A modern and premium work hours tracking application built with React, TypeScript and Vite.
 
-## Development
+## 🚀 Live Demo
+
+🔗 [https://your-netlify-url.netlify.app](https://shubhamg77.github.io/Hour-Calculator-SG/)
+
+## ✨ Features
+
+- 📅 Monthly work hours tracking
+- ⏱️ Daily 8-hour target calculation
+- 🏖️ Automatic leave deduction calculation
+- 📊 Progress tracking dashboard
+- 📈 Smart catch-up plans
+- 🎨 Premium animated UI
+- 📱 Fully responsive design
+
+## 🛠️ Tech Stack
+
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- Framer Motion
+- Recharts
+
+## 📷 Screenshots
+
+![Dashboard](./screenshots/dashboard.png)
+
+## 💻 Run Locally
 
 ```bash
 npm install
 npm run dev
-```
-
-## Build
-
-```bash
-npm run build
-```
-
-## Deploy
-
-This project is configured for GitHub Pages.
-
-```bash
-npm run deploy
-```
