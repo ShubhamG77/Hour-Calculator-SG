@@ -26,7 +26,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   loadMockData,
 }) => {
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    updateSettings({ userName: e.target.value || 'Shubham' });
+    updateSettings({ userName: e.target.value });
   };
 
   const handleThemeChange = (theme: 'light' | 'dark') => {

@@ -4,12 +4,8 @@ import {
   Brain, 
   CheckCircle, 
   AlertTriangle, 
-  Calendar,
-  Clock,
   Compass,
   Star,
-  ChevronRight,
-  TrendingDown
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { formatMinutes } from '../utils/timeUtils';
@@ -21,71 +17,74 @@ interface PlannerPageProps {
 export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
   const {
     remainingWeekdays,
-    netMinutesStatus,
     isAhead,
     netMinutesStatusAbs,
   } = stats;
 
-  // Recovery Calculations
+  // Recovery target in minutes
   const shortageMinutes = isAhead ? 0 : netMinutesStatusAbs;
+  const maxExtraPerDayMinutes = 480;
+  const minExtraPerDayToRecover =
+    shortageMinutes > 0 && remainingWeekdays > 0
+      ? Math.ceil(shortageMinutes / remainingWeekdays)
+      : 0;
+  const canRecoverWithoutLeave = minExtraPerDayToRecover <= maxExtraPerDayMinutes;
 
-  // Build a fixed-rate recovery plan capped to the ACTUAL remaining working days.
-  // Any shortage that can't fit within the remaining days is converted to a leave deduction.
-  const buildPlan = (rate: number) => {
-    const daysNeeded = shortageMinutes > 0 ? Math.ceil(shortageMinutes / rate) : 0;
-    const daysUsed = Math.min(daysNeeded, remainingWeekdays);
-    const uncoveredMinutes = Math.max(0, shortageMinutes - remainingWeekdays * rate);
-    const recoveredMinutes = Math.min(shortageMinutes, daysUsed * rate);
-    const leaveDeducted = uncoveredMinutes / 480;
+  const buildDynamicPlan = (title: string, dayRatio: number, tone: 'emerald' | 'amber' | 'rose') => {
+    const daysPlanned = Math.max(1, Math.ceil(remainingWeekdays * dayRatio));
+    const extraPerDay = Math.ceil(shortageMinutes / daysPlanned);
+    const daysNeeded = extraPerDay > 0 ? Math.ceil(shortageMinutes / extraPerDay) : 0;
+
     return {
-      rate,
+      title,
+      tone,
+      daysPlanned,
+      extraPerDay,
       daysNeeded,
-      daysUsed,
-      uncoveredMinutes,
-      recoveredMinutes,
-      leaveDeducted,
-      fullyRecoverable: uncoveredMinutes <= 0,
+      totalRecoveryMinutes: shortageMinutes,
+      isValid: extraPerDay <= maxExtraPerDayMinutes,
     };
   };
 
-  const comfortable = buildPlan(20);
-  const balanced = buildPlan(35);
-  const fast = buildPlan(60);
+  const dynamicPlans = shortageMinutes > 0
+    ? [
+        buildDynamicPlan('Comfortable Plan', 1.0, 'emerald'),
+        buildDynamicPlan('Balanced Plan', 0.7, 'amber'),
+        buildDynamicPlan('Fast Recovery Plan', 0.45, 'rose'),
+      ]
+        .filter((plan) => plan.isValid)
+    : [];
 
-  // Interactive custom recovery calculator (slider: 0 to 8 hours per day)
-  const [extraPerDay, setExtraPerDay] = useState(60);
+  const mixedBaseExtra = Math.max(minExtraPerDayToRecover, 30);
+  const mixedBoostExtra = Math.min(maxExtraPerDayMinutes, mixedBaseExtra + 30);
+  const mixedPlannedDays = shortageMinutes > 0
+    ? Math.min(
+        remainingWeekdays,
+        Math.max(2, Math.ceil(shortageMinutes / Math.max(1, Math.floor((mixedBaseExtra + mixedBoostExtra) / 2)))),
+      )
+    : 0;
+  const mixedBoostDays = mixedPlannedDays > 0 && mixedBoostExtra > mixedBaseExtra
+    ? Math.max(0, Math.min(
+        mixedPlannedDays,
+        Math.ceil((shortageMinutes - mixedPlannedDays * mixedBaseExtra) / (mixedBoostExtra - mixedBaseExtra)),
+      ))
+    : 0;
+  const mixedBaseDays = Math.max(0, mixedPlannedDays - mixedBoostDays);
+  const mixedRecoveredMinutes = mixedBoostDays * mixedBoostExtra + mixedBaseDays * mixedBaseExtra;
+  const mixedDaysNeeded = mixedPlannedDays;
+  const mixedPlanValid = shortageMinutes > 0
+    && mixedRecoveredMinutes >= shortageMinutes
+    && mixedDaysNeeded <= remainingWeekdays
+    && mixedBoostExtra <= maxExtraPerDayMinutes;
+
+  // Custom recovery calculator: slider starts at 0, then user can increase to required level.
+  const initialExtraPerDay = 0;
+  const [extraPerDay, setExtraPerDay] = useState(initialExtraPerDay);
   const customDaysNeeded = shortageMinutes > 0 && extraPerDay > 0 ? Math.ceil(shortageMinutes / extraPerDay) : 0;
-  const customCovered = extraPerDay > 0 && customDaysNeeded <= remainingWeekdays;
-  const customDaysUsed = Math.min(customDaysNeeded, remainingWeekdays);
-  const customUncoveredMinutes = Math.max(0, shortageMinutes - remainingWeekdays * extraPerDay);
-  const customLeaveDeducted = customUncoveredMinutes / 480;
-
-  // 4. Smart Mixed Plan: Stay 30m on some days, 1h on others
-  // Let's divide shortage into blocks of 90m (60m + 30m)
-  let mixedDays1h = 0;
-  let mixedDays30m = 0;
-  
-  if (shortageMinutes > 0) {
-    const blocksOf90 = Math.floor(shortageMinutes / 90);
-    const rem = shortageMinutes % 90;
-    
-    mixedDays1h = blocksOf90;
-    mixedDays30m = blocksOf90;
-    
-    if (rem > 0) {
-      if (rem <= 30) {
-        mixedDays30m += 1;
-      } else if (rem <= 60) {
-        mixedDays1h += 1;
-      } else {
-        mixedDays1h += 1;
-        mixedDays30m += 1;
-      }
-    }
-  }
-  
-  const mixedTotalDays = mixedDays1h + mixedDays30m;
-  const mixedPossible = mixedTotalDays <= remainingWeekdays;
+  const customRecoverableMinutes = remainingWeekdays * extraPerDay;
+  const customUncoveredMinutes = Math.max(0, shortageMinutes - customRecoverableMinutes);
+  const customLeaveImpact = customUncoveredMinutes / 480;
+  const customCovered = extraPerDay >= minExtraPerDayToRecover && customDaysNeeded <= remainingWeekdays;
 
   // SVG Circular Meter Config
   const radius = 60;
@@ -188,112 +187,102 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
       </div>
 
       {/* Plan Details Grid */}
-      {!isAhead && shortageMinutes > 0 && (
+      {!isAhead && shortageMinutes > 0 && canRecoverWithoutLeave && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Comfortable Plan */}
-          <GlassCard className="p-5 flex flex-col justify-between border-l-4 border-l-emerald-500" delay={0.05}>
-            <div className="space-y-2">
-              <div className="flex justify-between items-start">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase">
-                  Comfortable Plan
-                </span>
-                <span className={`text-[10px] font-bold uppercase ${comfortable.fullyRecoverable ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {comfortable.fullyRecoverable ? '🟢 Achievable' : '🟡 Partial + Leave'}
-                </span>
-              </div>
-              <p className="text-sm font-semibold text-slate-200">
-                Stay <strong className="text-emerald-400 font-bold">20m extra</strong> daily for next <strong className="text-white font-bold">{comfortable.daysUsed}</strong> working days.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs text-slate-400">
-              <span>Total recovery: {formatMinutes(comfortable.recoveredMinutes)}</span>
-              {!comfortable.fullyRecoverable && (
-                <span className="flex items-center gap-1 text-[10px] text-rose-400 font-semibold">
-                  <TrendingDown className="w-3.5 h-3.5" /> {comfortable.leaveDeducted.toFixed(3)} leave deducted
-                </span>
-              )}
-            </div>
-          </GlassCard>
+          {dynamicPlans.map((plan, index) => {
+            const toneStyles = {
+              emerald: {
+                border: 'border-l-emerald-500',
+                chip: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+                highlight: 'text-emerald-400',
+              },
+              amber: {
+                border: 'border-l-amber-500',
+                chip: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+                highlight: 'text-amber-400',
+              },
+              rose: {
+                border: 'border-l-rose-500',
+                chip: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+                highlight: 'text-rose-400',
+              },
+            } as const;
 
-          {/* Balanced Plan */}
-          <GlassCard className="p-5 flex flex-col justify-between border-l-4 border-l-amber-500" delay={0.1}>
-            <div className="space-y-2">
-              <div className="flex justify-between items-start">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase">
-                  Balanced Plan
-                </span>
-                <span className={`text-[10px] font-bold uppercase ${balanced.fullyRecoverable ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {balanced.fullyRecoverable ? '🟢 Achievable' : '🟡 Partial + Leave'}
-                </span>
-              </div>
-              <p className="text-sm font-semibold text-slate-200">
-                Stay <strong className="text-amber-400 font-bold">35m extra</strong> daily for next <strong className="text-white font-bold">{balanced.daysUsed}</strong> working days.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs text-slate-400">
-              <span>Total recovery: {formatMinutes(balanced.recoveredMinutes)}</span>
-              {!balanced.fullyRecoverable && (
-                <span className="flex items-center gap-1 text-[10px] text-rose-400 font-semibold">
-                  <TrendingDown className="w-3.5 h-3.5" /> {balanced.leaveDeducted.toFixed(3)} leave deducted
-                </span>
-              )}
-            </div>
-          </GlassCard>
+            const styles = toneStyles[plan.tone];
 
-          {/* Fast Recovery Plan */}
-          <GlassCard className="p-5 flex flex-col justify-between border-l-4 border-l-rose-500" delay={0.15}>
-            <div className="space-y-2">
-              <div className="flex justify-between items-start">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 uppercase">
-                  Fast Recovery Plan
-                </span>
-                <span className={`text-[10px] font-bold uppercase ${fast.fullyRecoverable ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {fast.fullyRecoverable ? '🟢 Achievable' : '🟡 Partial + Leave'}
-                </span>
-              </div>
-              <p className="text-sm font-semibold text-slate-200">
-                Stay <strong className="text-rose-400 font-bold">1h (60m) extra</strong> daily for next <strong className="text-white font-bold">{fast.daysUsed}</strong> working days.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs text-slate-400">
-              <span>Total recovery: {formatMinutes(fast.recoveredMinutes)}</span>
-              {!fast.fullyRecoverable && (
-                <span className="flex items-center gap-1 text-[10px] text-rose-400 font-semibold">
-                  <TrendingDown className="w-3.5 h-3.5" /> {fast.leaveDeducted.toFixed(3)} leave deducted
-                </span>
-              )}
-            </div>
-          </GlassCard>
+            return (
+              <GlassCard
+                key={plan.title}
+                className={`p-5 flex flex-col justify-between border-l-4 ${styles.border}`}
+                delay={0.05 + index * 0.05}
+              >
+                <div className="space-y-2">
+                  <div className="flex justify-between items-start">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase ${styles.chip}`}>
+                      {plan.title}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase text-emerald-400">
+                      Covers Fully
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-slate-200">
+                    Stay <strong className={`${styles.highlight} font-bold`}>{formatMinutes(plan.extraPerDay)} extra</strong> daily for{' '}
+                    <strong className="text-white font-bold">{plan.daysNeeded}</strong> working days.
+                  </p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs text-slate-400">
+                  <span>Total recovery: {formatMinutes(plan.totalRecoveryMinutes)}</span>
+                  <span className="text-emerald-400 font-semibold">No leave deduction</span>
+                </div>
+              </GlassCard>
+            );
+          })}
 
-          {/* Smart Mixed Plan */}
-          <GlassCard className="p-5 flex flex-col justify-between border-l-4 border-l-purple-500" delay={0.2}>
-            <div className="space-y-2">
-              <div className="flex justify-between items-start">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 uppercase">
-                  ⭐ Smart Mixed Plan
-                </span>
-                <span className={`text-[10px] font-bold uppercase ${mixedPossible ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {mixedPossible ? '🟢 Achievable' : '🔴 Exceeds Month'}
-                </span>
+          {mixedPlanValid && (
+            <GlassCard className="p-5 flex flex-col justify-between border-l-4 border-l-violet-500" delay={0.22}>
+              <div className="space-y-2">
+                <div className="flex justify-between items-start">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase bg-violet-500/20 text-violet-300 border-violet-500/30">
+                    <Star className="w-3 h-3" /> Smart Mixed Plan
+                  </span>
+                  <span className="text-[10px] font-bold uppercase text-emerald-400">
+                    Covers Fully
+                  </span>
+                </div>
+                <p className="text-sm font-semibold text-slate-200">
+                  Stay <strong className="text-violet-400 font-bold">{formatMinutes(mixedBoostExtra)} extra</strong> on{' '}
+                  <strong className="text-white font-bold">{mixedBoostDays} days</strong> and{' '}
+                  <strong className="text-indigo-400 font-bold">{formatMinutes(mixedBaseExtra)} extra</strong> on{' '}
+                  <strong className="text-white font-bold">{mixedBaseDays} days</strong>.
+                </p>
               </div>
-              <p className="text-sm font-semibold text-slate-200">
-                Stay <strong className="text-purple-400 font-bold">1h extra on {mixedDays1h} days</strong> and <strong className="text-indigo-400 font-bold">30m extra on {mixedDays30m} days</strong>.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs text-slate-400">
-              <span>Total schedule: {mixedTotalDays} working days</span>
-              {!mixedPossible && (
-                <span className="flex items-center gap-1 text-[10px] text-amber-400 font-semibold">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Exceeds remaining weekdays
-                </span>
-              )}
-            </div>
-          </GlassCard>
+              <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs text-slate-400">
+                <span>Total schedule: {mixedDaysNeeded} working days</span>
+                <span className="text-emerald-400 font-semibold">No leave deduction</span>
+              </div>
+            </GlassCard>
+          )}
         </div>
       )}
 
+      {/* Not recoverable without leave */}
+      {!isAhead && shortageMinutes > 0 && !canRecoverWithoutLeave && (
+        <GlassCard className="p-5 border-l-4 border-l-rose-500" hoverEffect={false}>
+          <div className="flex items-start gap-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs p-4">
+            <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold">No no-leave plan can fully cover this month with current remaining days.</p>
+              <p className="mt-1 text-rose-200/90">
+                You need at least <strong>{formatMinutes(minExtraPerDayToRecover)}</strong> extra per day,
+                which is above the planner limit of <strong>{formatMinutes(maxExtraPerDayMinutes)}</strong>.
+              </p>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
       {/* Custom Recovery Calculator (interactive slider) */}
-      {!isAhead && shortageMinutes > 0 && (
+      {!isAhead && shortageMinutes > 0 && canRecoverWithoutLeave && (
         <GlassCard className="p-6" delay={0.25} hoverEffect={false}>
           <div className="flex items-center gap-2 mb-1">
             <div className="p-1.5 bg-teal-500/15 rounded-lg text-teal-400 border border-teal-500/25">
@@ -302,8 +291,9 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">Custom Recovery Calculator</h3>
           </div>
           <p className="text-xs text-slate-400 mb-5">
-            Choose how much extra time you can stay each day (0 to 8 hours) and see how long it takes to clear your{' '}
-            <strong className="text-white">{formatMinutes(shortageMinutes)}</strong> shortage. If it can't be covered within your remaining days, the leftover is deducted as leave.
+            Choose how much extra time you can stay each day and see how long it takes to clear your{' '}
+            <strong className="text-white">{formatMinutes(shortageMinutes)}</strong> shortage. If extra time is too low,
+            remaining shortage is shown as leave impact.
           </p>
 
           <div className="flex items-center justify-between mb-2">
@@ -315,7 +305,7 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
           <input
             type="range"
             min={0}
-            max={480}
+            max={maxExtraPerDayMinutes}
             step={15}
             value={extraPerDay}
             onChange={(e) => setExtraPerDay(Number(e.target.value))}
@@ -335,12 +325,12 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
             </div>
             <div className="text-center bg-slate-900/40 rounded-xl p-3 border border-white/5">
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Within Remaining</span>
-              <p className="text-lg font-bold text-emerald-400 mt-1">{customDaysUsed} / {remainingWeekdays}</p>
+              <p className="text-lg font-bold text-emerald-400 mt-1">{customDaysNeeded} / {remainingWeekdays}</p>
             </div>
             <div className="text-center bg-slate-900/40 rounded-xl p-3 border border-white/5">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Leave Deducted</span>
-              <p className={`text-lg font-bold mt-1 ${customLeaveDeducted > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                {customLeaveDeducted.toFixed(3)}
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Leave Impact</span>
+              <p className={`text-lg font-bold mt-1 ${customLeaveImpact > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {customLeaveImpact.toFixed(3)}
               </p>
             </div>
           </div>
@@ -357,8 +347,8 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
               <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <p>
-                  At <strong>{formatMinutes(extraPerDay)} extra</strong> daily you can only recover <strong>{formatMinutes(remainingWeekdays * extraPerDay)}</strong> across the remaining {remainingWeekdays} days.
-                  The leftover <strong>{formatMinutes(customUncoveredMinutes)}</strong> will be deducted as <strong>{customLeaveDeducted.toFixed(3)} leave</strong>.
+                  At <strong>{formatMinutes(extraPerDay)} extra</strong> daily, you can recover <strong>{formatMinutes(customRecoverableMinutes)}</strong> in {remainingWeekdays} days.
+                  Remaining <strong>{formatMinutes(customUncoveredMinutes)}</strong> becomes <strong>{customLeaveImpact.toFixed(3)} leave</strong> impact.
                 </p>
               </div>
             )}

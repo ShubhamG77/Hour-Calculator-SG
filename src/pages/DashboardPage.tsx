@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   TrendingUp, 
@@ -32,6 +32,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   setActiveTab,
   applyPastedHours,
 }) => {
+  const QUICK_INPUT_SESSION_KEY = 'hours_tracker_quick_input';
+
   const {
     totalWeekdays,
     completedWeekdays,
@@ -55,8 +57,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [copied, setCopied] = useState(false);
 
   // Quick paste calculator state
-  const [pasteInput, setPasteInput] = useState('');
+  const [pasteInput, setPasteInput] = useState(() => {
+    const savedInput = sessionStorage.getItem(QUICK_INPUT_SESSION_KEY);
+    return savedInput ?? '';
+  });
   const [pasteResult, setPasteResult] = useState<ReturnType<typeof parsePastedHours> | null>(null);
+
+  useEffect(() => {
+    sessionStorage.setItem(QUICK_INPUT_SESSION_KEY, pasteInput);
+  }, [pasteInput]);
 
   const dailyTargetMinutes = settings.dailyTargetMinutes || 480;
 
@@ -70,6 +79,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const handleClearPaste = () => {
     setPasteInput('');
     setPasteResult(null);
+    sessionStorage.removeItem(QUICK_INPUT_SESSION_KEY);
     // Also wipe all dashboard data
     applyPastedHours([]);
   };
@@ -199,8 +209,9 @@ ${isAhead ? '🎉 Back on track! Great job Shubham!' : `💪 Recovery requiremen
         </div>
 
         <p className="text-xs text-slate-400 mb-3">
-          Paste your daily hours below (e.g. <span className="text-slate-300">7 hrs, 30 min</span>). Each non-zero entry counts
-          as one working day at a target of <span className="text-emerald-300 font-semibold">{formatMinutes(dailyTargetMinutes)}</span>.
+          Paste your daily hours below (e.g. <span className="text-slate-300">7 hrs, 30 min</span>). For non-exact month lists,
+          <span className="text-slate-300"> 0, 0, 0</span> is interpreted as weekend + 1 leave day. Non-zero entries are tracked as worked
+          time against a target of <span className="text-emerald-300 font-semibold">{formatMinutes(dailyTargetMinutes)}</span>.
         </p>
 
         <textarea

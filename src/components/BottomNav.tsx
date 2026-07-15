@@ -25,9 +25,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   const mainItems = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+    { id: 'planner', label: 'Planner', icon: Brain },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'history', label: 'Log', icon: Clock },
-    { id: 'planner', label: 'Planner', icon: Brain },
     { id: 'simulator', label: 'Simulator', icon: Palmtree },
   ];
 

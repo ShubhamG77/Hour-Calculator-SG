@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Menu, 
@@ -11,16 +11,21 @@ import {
 import { useHoursTracker } from './hooks/useHoursTracker';
 import { Sidebar } from './components/Sidebar';
 import { BottomNav } from './components/BottomNav';
-import { DashboardSkeleton, CalendarSkeleton } from './components/SkeletonLoader';
 
 // Pages
-import { DashboardPage } from './pages/DashboardPage';
-import { CalendarPage } from './pages/CalendarPage';
-import { HistoryPage } from './pages/HistoryPage';
-import { AnalyticsPage } from './pages/AnalyticsPage';
-import { PlannerPage } from './pages/PlannerPage';
-import { SimulatorPage } from './pages/SimulatorPage';
-import { SettingsPage } from './pages/SettingsPage';
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
+const CalendarPage = lazy(() => import('./pages/CalendarPage').then((module) => ({ default: module.CalendarPage })));
+const HistoryPage = lazy(() => import('./pages/HistoryPage').then((module) => ({ default: module.HistoryPage })));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })));
+const PlannerPage = lazy(() => import('./pages/PlannerPage').then((module) => ({ default: module.PlannerPage })));
+const SimulatorPage = lazy(() => import('./pages/SimulatorPage').then((module) => ({ default: module.SimulatorPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })));
+
+const PageLoader = () => (
+  <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-6 text-sm font-medium text-slate-400">
+    Loading page...
+  </div>
+);
 
 export default function App() {
   const {
@@ -40,25 +45,6 @@ export default function App() {
     updateSettings,
     stats,
   } = useHoursTracker();
-
-  // Loading state to simulate premium loading skeletons when changing tabs
-  const [isPageLoading, setIsPageLoading] = useState(false);
-  const loadingTimeoutRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    // Show loading skeleton for 350ms on tab change to let the user enjoy the premium animation
-    setIsPageLoading(true);
-    if (loadingTimeoutRef.current) {
-      window.clearTimeout(loadingTimeoutRef.current);
-    }
-    loadingTimeoutRef.current = window.setTimeout(() => {
-      setIsPageLoading(false);
-    }, 350);
-
-    return () => {
-      if (loadingTimeoutRef.current) window.clearTimeout(loadingTimeoutRef.current);
-    };
-  }, [activeTab]);
 
   // Pull-to-refresh Mobile Handler
   const [pullProgress, setPullProgress] = useState(0); // 0 to 100
@@ -117,43 +103,88 @@ export default function App() {
   const renderActivePage = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <DashboardPage stats={stats} settings={settings} setActiveTab={setActiveTab} applyPastedHours={applyPastedHours} />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <div className="space-y-8">
+              <DashboardPage
+                stats={stats}
+                settings={settings}
+                setActiveTab={setActiveTab}
+                applyPastedHours={applyPastedHours}
+              />
+
+              <section className="space-y-3">
+                <div className="px-1">
+                  <h3 className="text-base md:text-lg font-extrabold text-white tracking-tight">
+                    Recovery Planner
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium">
+                    Plan recovery options without leaving Dashboard.
+                  </p>
+                </div>
+                <PlannerPage stats={stats} />
+              </section>
+            </div>
+          </Suspense>
+        );
       case 'calendar':
         return (
-          <CalendarPage 
-            logs={logs} 
-            selectedDate={selectedDate} 
-            setSelectedDate={setSelectedDate}
-            updateLog={updateLog}
-            deleteLog={deleteLog}
-          />
+          <Suspense fallback={<PageLoader />}>
+            <CalendarPage 
+              logs={logs} 
+              selectedDate={selectedDate} 
+              setSelectedDate={setSelectedDate}
+              updateLog={updateLog}
+              deleteLog={deleteLog}
+            />
+          </Suspense>
         );
       case 'history':
         return (
-          <HistoryPage 
-            logs={logs} 
-            updateLog={updateLog} 
-            deleteLog={deleteLog}
-            selectedDate={selectedDate}
-          />
+          <Suspense fallback={<PageLoader />}>
+            <HistoryPage 
+              logs={logs} 
+              updateLog={updateLog} 
+              deleteLog={deleteLog}
+              selectedDate={selectedDate}
+            />
+          </Suspense>
         );
       case 'analytics':
-        return <AnalyticsPage logs={logs} stats={stats} selectedDate={selectedDate} />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <AnalyticsPage logs={logs} stats={stats} selectedDate={selectedDate} />
+          </Suspense>
+        );
       case 'planner':
-        return <PlannerPage stats={stats} />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <PlannerPage stats={stats} />
+          </Suspense>
+        );
       case 'simulator':
-        return <SimulatorPage stats={stats} setSimulatedLeaves={setSimulatedLeaves} />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <SimulatorPage stats={stats} setSimulatedLeaves={setSimulatedLeaves} />
+          </Suspense>
+        );
       case 'settings':
         return (
-          <SettingsPage 
-            settings={settings} 
-            updateSettings={updateSettings} 
-            clearAllData={clearAllData}
-            loadMockData={loadMockData}
-          />
+          <Suspense fallback={<PageLoader />}>
+            <SettingsPage 
+              settings={settings} 
+              updateSettings={updateSettings} 
+              clearAllData={clearAllData}
+              loadMockData={loadMockData}
+            />
+          </Suspense>
         );
       default:
-        return <DashboardPage stats={stats} settings={settings} setActiveTab={setActiveTab} applyPastedHours={applyPastedHours} />;
+        return (
+          <Suspense fallback={<PageLoader />}>
+            <DashboardPage stats={stats} settings={settings} setActiveTab={setActiveTab} applyPastedHours={applyPastedHours} />
+          </Suspense>
+        );
     }
   };
 
@@ -173,6 +204,9 @@ export default function App() {
   const toggleTheme = () => {
     updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' });
   };
+
+  const displayName = settings.userName || 'Shubham';
+  const profileInitial = displayName.charAt(0).toUpperCase();
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex transition-colors duration-300 dark:bg-slate-950 light:bg-slate-50 light:text-slate-800">
@@ -204,7 +238,7 @@ export default function App() {
         <header className="md:hidden flex items-center justify-between px-6 py-4 bg-slate-900/60 dark:bg-slate-950/60 backdrop-blur-md border-b border-white/10 dark:border-white/5 sticky top-0 z-30">
           <div>
             <h1 className="text-lg font-black bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-              Shubham Work
+              {displayName} Work
             </h1>
             <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold -mt-0.5">
               Hours Tracker
@@ -223,7 +257,7 @@ export default function App() {
               )}
             </button>
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-white shadow shadow-emerald-500/20 text-sm">
-              S
+              {profileInitial}
             </div>
           </div>
         </header>
@@ -280,30 +314,17 @@ export default function App() {
             )}
           </div>
 
-          <AnimatePresence mode="wait">
-            {isPageLoading ? (
-              <motion.div
-                key="skeleton"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="w-full"
-              >
-                {activeTab === 'calendar' ? <CalendarSkeleton /> : <DashboardSkeleton />}
-              </motion.div>
-            ) : (
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full"
-              >
-                {renderActivePage()}
-              </motion.div>
-            )}
+          <AnimatePresence initial={false} mode="sync">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="w-full"
+            >
+              {renderActivePage()}
+            </motion.div>
           </AnimatePresence>
         </main>
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   getDateString, 
   getYearMonthKey, 
+  getMonthDays,
   getMonthWeekdays, 
   isWeekend, 
   formatMinutes 
@@ -27,19 +28,39 @@ const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
 };
 
+const SETTINGS_STORAGE_KEY = 'shubham_tracker_settings';
+const LOGS_STORAGE_KEY = 'shubham_tracker_logs';
+const SESSION_USER_NAME_KEY = 'shubham_tracker_session_user_name';
+
 export function useHoursTracker() {
   // Navigation tab state
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   
   // Settings state
   const [settings, setSettings] = useState<Settings>(() => {
-    const saved = localStorage.getItem('shubham_tracker_settings');
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    let persistedSettings: Partial<Settings> = {};
+    const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+
+    if (savedSettings) {
+      try {
+        persistedSettings = JSON.parse(savedSettings);
+      } catch {
+        persistedSettings = {};
+      }
+    }
+
+    const sessionUserName = sessionStorage.getItem(SESSION_USER_NAME_KEY);
+
+    return {
+      ...DEFAULT_SETTINGS,
+      ...persistedSettings,
+      userName: (sessionUserName && sessionUserName.trim()) || DEFAULT_SETTINGS.userName,
+    };
   });
 
   // Daily logs state
   const [logs, setLogs] = useState<Record<string, DayLog>>(() => {
-    const saved = localStorage.getItem('shubham_tracker_logs');
+    const saved = localStorage.getItem(LOGS_STORAGE_KEY);
     return saved ? JSON.parse(saved) : {};
   });
 
@@ -52,9 +73,14 @@ export function useHoursTracker() {
     return new Date(2026, 6, 14); // month index 6 is July
   });
 
-  // Persist settings to localStorage
+  // Persist non-session settings to localStorage
   useEffect(() => {
-    localStorage.setItem('shubham_tracker_settings', JSON.stringify(settings));
+    const persistentSettings = {
+      theme: settings.theme,
+      dailyTargetMinutes: settings.dailyTargetMinutes,
+    };
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(persistentSettings));
+
     // Apply theme
     const root = window.document.documentElement;
     if (settings.theme === 'dark') {
@@ -64,9 +90,14 @@ export function useHoursTracker() {
     }
   }, [settings]);
 
+  // Persist greeter name only for the current browser session
+  useEffect(() => {
+    sessionStorage.setItem(SESSION_USER_NAME_KEY, settings.userName);
+  }, [settings.userName]);
+
   // Persist logs to localStorage
   useEffect(() => {
-    localStorage.setItem('shubham_tracker_logs', JSON.stringify(logs));
+    localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(logs));
   }, [logs]);
 
   // Update a single log
@@ -98,26 +129,114 @@ export function useHoursTracker() {
     setSimulatedLeaves(0);
   };
 
-  // Import pasted working hours: maps each non-zero entry (in minutes) to
-  // consecutive weekdays of the selected month, replacing existing logs.
+  // Import pasted working hours and convert into weekday logs for the selected month.
+  //
+  // Rules:
+  // 1. If entries match exact month-day count, map day-by-day and treat weekday
+  //    0-minute entries as leave days.
+  // 2. Otherwise map to sequential weekdays. If the series contains weekend-style
+  //    zero pairs, only extra zeros beyond the pair are treated as leave days.
+  //    Example: 0,0,0 => weekend + 1 leave.
   const applyPastedHours = (entries: number[]) => {
-    const workEntries = entries.filter((m) => m > 0);
     const year = selectedDate.getFullYear();
     const monthIndex = selectedDate.getMonth();
+    const monthDays = getMonthDays(year, monthIndex);
     const weekdays = getMonthWeekdays(year, monthIndex);
 
     const newLogs: Record<string, DayLog> = {};
-    workEntries.forEach((mins, i) => {
-      if (i >= weekdays.length) return;
-      const key = getDateString(weekdays[i]);
-      newLogs[key] = {
-        date: key,
+    const isExactMonthSeries = entries.length === monthDays.length;
+
+    const addLeaveLog = (dateKey: string) => {
+      newLogs[dateKey] = {
+        date: dateKey,
+        minutesWorked: 0,
+        isLeave: true,
+        leaveHours: 8,
+        notes: 'Imported from paste (leave day)',
+      };
+    };
+
+    const addWorkLog = (dateKey: string, mins: number) => {
+      newLogs[dateKey] = {
+        date: dateKey,
         minutesWorked: mins,
         isLeave: false,
         leaveHours: 0,
         notes: 'Imported from paste',
       };
-    });
+    };
+
+    if (isExactMonthSeries) {
+      monthDays.forEach((day, index) => {
+        if (isWeekend(day)) return;
+
+        const mins = entries[index];
+        if (mins === undefined) return;
+        const key = getDateString(day);
+
+        if (mins <= 0) {
+          addLeaveLog(key);
+          return;
+        }
+
+        addWorkLog(key, mins);
+      });
+    } else {
+      // Analyze zero runs to infer whether weekends are included in the pasted text.
+      const zeroRuns: number[] = [];
+      let runLength = 0;
+      entries.forEach((mins) => {
+        if (mins <= 0) {
+          runLength += 1;
+          return;
+        }
+        if (runLength > 0) {
+          zeroRuns.push(runLength);
+          runLength = 0;
+        }
+      });
+      if (runLength > 0) zeroRuns.push(runLength);
+
+      const hasWeekendPattern = zeroRuns.some((run) => run >= 2);
+
+      let weekdayCursor = 0;
+      let pendingZeroRun = 0;
+
+      const consumeZeroRunAsLeave = () => {
+        if (pendingZeroRun === 0) return;
+
+        const leaveDays = hasWeekendPattern
+          ? Math.max(0, pendingZeroRun - 2)
+          : pendingZeroRun;
+
+        for (let i = 0; i < leaveDays; i += 1) {
+          if (weekdayCursor >= weekdays.length) break;
+          const leaveKey = getDateString(weekdays[weekdayCursor]);
+          addLeaveLog(leaveKey);
+          weekdayCursor += 1;
+        }
+
+        pendingZeroRun = 0;
+      };
+
+      entries.forEach((mins) => {
+        if (weekdayCursor >= weekdays.length) return;
+
+        if (mins <= 0) {
+          pendingZeroRun += 1;
+          return;
+        }
+
+        consumeZeroRunAsLeave();
+        if (weekdayCursor >= weekdays.length) return;
+
+        const key = getDateString(weekdays[weekdayCursor]);
+        addWorkLog(key, mins);
+        weekdayCursor += 1;
+      });
+
+      consumeZeroRunAsLeave();
+    }
 
     setLogs(newLogs);
     setSimulatedLeaves(0);

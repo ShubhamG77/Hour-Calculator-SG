@@ -26,12 +26,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   settings,
   updateSettings,
 }) => {
+  const displayName = settings.userName || 'Shubham';
+  const profileInitial = displayName.charAt(0).toUpperCase();
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'planner', label: 'Recovery Planner', icon: Brain },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
     { id: 'history', label: 'Hours History', icon: Clock },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'planner', label: 'Recovery Planner', icon: Brain },
     { id: 'simulator', label: 'Leave Simulator', icon: Palmtree },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
@@ -45,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Brand Logo / Greeting */}
       <div className="px-4 mb-8">
         <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-blue-500 bg-clip-text text-transparent tracking-tight">
-          Shubham Work
+          SG Work
         </h1>
         <p className="text-xs text-slate-400 font-medium tracking-widest uppercase mt-0.5">
           Hours Tracker
@@ -113,10 +116,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-white shadow-lg shadow-emerald-500/20 text-lg">
-            S
+            {profileInitial}
           </div>
           <div>
-            <h4 className="text-sm font-bold text-white">Shubham G</h4>
+            <h4 className="text-sm font-bold text-white">{displayName}</h4>
             <p className="text-xs text-slate-400">Regular Employee</p>
           </div>
         </div>
