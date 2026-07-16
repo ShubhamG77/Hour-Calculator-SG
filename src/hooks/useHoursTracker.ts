@@ -275,21 +275,10 @@ export function useHoursTracker() {
     const weekdaysInMonth = getMonthWeekdays(year, monthIndex);
     const totalWeekdays = weekdaysInMonth.length;
     
-    // For July 2026, today is July 14, 2026
-    const today = new Date(2026, 6, 14); // Lock current date as July 14, 2026
-    
-    // Calculate completed weekdays (weekdays in selected month that are <= today AND have been logged)
+    // Calculate completed weekdays (any weekday in the selected month that has been logged).
+    // Logged days are the source of truth, so every logged weekday counts toward progress
+    // and the required-hours total, keeping the dashboard in sync with the calculator.
     const completedWeekdaysList = weekdaysInMonth.filter(d => {
-      const isPastOrToday = (() => {
-        if (year < today.getFullYear()) return true;
-        if (year > today.getFullYear()) return false;
-        if (monthIndex < today.getMonth()) return true;
-        if (monthIndex > today.getMonth()) return false;
-        return d.getDate() <= today.getDate();
-      })();
-      
-      if (!isPastOrToday) return false;
-      
       const key = getDateString(d);
       return logs[key] !== undefined;
     });
