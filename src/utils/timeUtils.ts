@@ -204,7 +204,7 @@ export function getGreeting(userName: string): string {
     salutation = 'Good Evening';
   }
   
-  return `${salutation}, ${userName} 👋`;
+  return `${salutation}, ${(userName && userName.trim()) || 'buddy'} 👋`;
 }
 
 /**

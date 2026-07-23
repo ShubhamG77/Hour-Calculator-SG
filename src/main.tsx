@@ -4,18 +4,11 @@ import './index.css'
 import App from './App.tsx'
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  const url = new URL(window.location.href)
-
-  if (!url.searchParams.has('sw')) {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      return Promise.all(registrations.map((registration) => registration.unregister()))
-    }).then(() => {
-      url.searchParams.set('sw', 'disabled')
-      window.location.replace(url.toString())
-    }).catch(() => {
-      console.warn('Service worker cleanup failed')
-    })
-  }
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    return Promise.all(registrations.map((registration) => registration.unregister()))
+  }).catch(() => {
+    console.warn('Service worker cleanup failed')
+  })
 }
 
 createRoot(document.getElementById('root')!).render(

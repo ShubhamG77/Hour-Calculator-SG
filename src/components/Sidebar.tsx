@@ -26,7 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   settings,
   updateSettings,
 }) => {
-  const displayName = settings.userName || 'Shubham';
+  const displayName = settings.userName || 'buddy';
   const profileInitial = displayName.charAt(0).toUpperCase();
 
   const menuItems = [
@@ -67,7 +67,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => setActiveTab(item.id)}
               className="relative flex items-center w-full px-4 py-3 rounded-xl text-sm font-semibold transition-colors duration-200 group focus:outline-none"
               style={{
-                color: isActive ? '#fff' : 'rgb(148, 163, 184)'
+                color: isActive
+                  ? (settings.theme === 'dark' ? '#fff' : '#0f766e')
+                  : 'rgb(100, 116, 139)'
               }}
             >
               {/* Active Tab Background Slide Animation */}

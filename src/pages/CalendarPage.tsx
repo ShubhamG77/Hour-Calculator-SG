@@ -205,7 +205,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
         <div className="grid grid-cols-7 gap-1.5 md:gap-2">
           {gridDays.map((date, index) => {
             const dateStr = getDateString(date);
-            const isToday = dateStr === getDateString(new Date(2026, 6, 14)); // July 14, 2026
+            const isToday = dateStr === getDateString(new Date());
             const log = logs[dateStr];
             
             return (

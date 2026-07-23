@@ -205,7 +205,7 @@ export default function App() {
     updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' });
   };
 
-  const displayName = settings.userName || 'Shubham';
+  const displayName = settings.userName || 'buddy';
   const profileInitial = displayName.charAt(0).toUpperCase();
 
   return (

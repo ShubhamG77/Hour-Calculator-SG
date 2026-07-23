@@ -159,7 +159,7 @@ ${isAhead ? '🎉 Back on track! Great job Shubham!' : `💪 Recovery requiremen
 
               <p className="text-xs md:text-sm text-slate-300 font-medium">
                 {isAhead ? (
-                  <span>Great job {settings.userName}! You're back on track 🎉</span>
+                  <span>Great job {settings.userName || 'buddy'}! You're back on track 🎉</span>
                 ) : (
                   <span>
                     {remainingWeekdays > 0 ? (

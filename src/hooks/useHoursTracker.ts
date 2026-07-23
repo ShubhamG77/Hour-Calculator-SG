@@ -23,14 +23,14 @@ export interface Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  userName: 'Shubham',
+  userName: '',
   dailyTargetMinutes: 480, // 8 hours
   theme: 'dark',
 };
 
 const SETTINGS_STORAGE_KEY = 'shubham_tracker_settings';
 const LOGS_STORAGE_KEY = 'shubham_tracker_logs';
-const SESSION_USER_NAME_KEY = 'shubham_tracker_session_user_name';
+const SESSION_USER_NAME_KEY = 'sg_tracker_session_user_name_v2';
 
 export function useHoursTracker() {
   // Navigation tab state
@@ -50,6 +50,9 @@ export function useHoursTracker() {
     }
 
     const sessionUserName = sessionStorage.getItem(SESSION_USER_NAME_KEY);
+
+    // Remove the legacy key that used to seed a default "Shubham" name
+    sessionStorage.removeItem('shubham_tracker_session_user_name');
 
     return {
       ...DEFAULT_SETTINGS,
@@ -85,7 +88,9 @@ export function useHoursTracker() {
     const root = window.document.documentElement;
     if (settings.theme === 'dark') {
       root.classList.add('dark');
+      root.classList.remove('light');
     } else {
+      root.classList.add('light');
       root.classList.remove('dark');
     }
   }, [settings]);
