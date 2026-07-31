@@ -180,9 +180,9 @@ export const SimulatorPage: React.FC<SimulatorPageProps> = ({
               <span className="text-xs text-slate-400 font-medium">Recovery Requirement</span>
               <p className="text-base font-bold text-slate-300 mt-0.5">
                 {currentRecoveryMinutesDaily > 0 ? (
-                  <>Stay <strong className="text-white font-bold">{currentRecoveryMinutesDaily}m</strong> extra daily</>
+                  <>Stay <strong className="text-white font-bold">{formatMinutes(currentRecoveryMinutesDaily)}</strong> extra daily</>
                 ) : (
-                  <span className="text-emerald-400 font-semibold">0m extra daily</span>
+                  <span className="text-emerald-400 font-semibold">{formatMinutes(0)} extra daily</span>
                 )}
               </p>
             </div>
@@ -234,14 +234,14 @@ export const SimulatorPage: React.FC<SimulatorPageProps> = ({
               <span className="text-xs text-slate-400 font-medium">New Recovery Requirement</span>
               <p className="text-base font-bold text-purple-200 mt-0.5">
                 {simulatedRecoveryMinutesDaily > 0 ? (
-                  <>Stay <strong className="text-white font-bold">{simulatedRecoveryMinutesDaily}m</strong> extra daily</>
+                  <>Stay <strong className="text-white font-bold">{formatMinutes(simulatedRecoveryMinutesDaily)}</strong> extra daily</>
                 ) : (
-                  <span className="text-emerald-400 font-semibold">0m extra daily</span>
+                  <span className="text-emerald-400 font-semibold">{formatMinutes(0)} extra daily</span>
                 )}
               </p>
               {simulatedRecoveryMinutesDaily > currentRecoveryMinutesDaily && (
                 <span className="text-[10px] text-rose-400 font-semibold block mt-0.5">
-                  📈 Daily extra needed increases by +{simulatedRecoveryMinutesDaily - currentRecoveryMinutesDaily}m
+                  📈 Daily extra needed increases by +{formatMinutes(simulatedRecoveryMinutesDaily - currentRecoveryMinutesDaily)}
                 </span>
               )}
             </div>

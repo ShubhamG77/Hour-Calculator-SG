@@ -30,9 +30,18 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
       : 0;
   const canRecoverWithoutLeave = minExtraPerDayToRecover <= maxExtraPerDayMinutes;
 
+  // Fewest working days that can absorb the shortage without exceeding the daily cap
+  const minFeasibleDays = shortageMinutes > 0
+    ? Math.ceil(shortageMinutes / maxExtraPerDayMinutes)
+    : 0;
+
   const buildDynamicPlan = (title: string, dayRatio: number, tone: 'emerald' | 'amber' | 'rose') => {
-    const daysPlanned = Math.max(1, Math.ceil(remainingWeekdays * dayRatio));
-    const extraPerDay = Math.ceil(shortageMinutes / daysPlanned);
+    // Never plan fewer days than the daily cap allows, and never more than what is left
+    const daysPlanned = Math.min(
+      remainingWeekdays,
+      Math.max(1, minFeasibleDays, Math.ceil(remainingWeekdays * dayRatio)),
+    );
+    const extraPerDay = daysPlanned > 0 ? Math.ceil(shortageMinutes / daysPlanned) : 0;
     const daysNeeded = extraPerDay > 0 ? Math.ceil(shortageMinutes / extraPerDay) : 0;
 
     return {
@@ -42,7 +51,7 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
       extraPerDay,
       daysNeeded,
       totalRecoveryMinutes: shortageMinutes,
-      isValid: extraPerDay <= maxExtraPerDayMinutes,
+      isValid: daysPlanned > 0 && extraPerDay <= maxExtraPerDayMinutes,
     };
   };
 
@@ -55,24 +64,37 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
         .filter((plan) => plan.isValid)
     : [];
 
-  const mixedBaseExtra = Math.max(minExtraPerDayToRecover, 30);
-  const mixedBoostExtra = Math.min(maxExtraPerDayMinutes, mixedBaseExtra + 30);
+  // Mixed plan: some heavier days + some lighter days (boost days are ~1.5x the base day)
   const mixedPlannedDays = shortageMinutes > 0
+    ? Math.min(remainingWeekdays, Math.max(2, minFeasibleDays))
+    : 0;
+  const mixedBoostDays = mixedPlannedDays >= 2 ? Math.ceil(mixedPlannedDays / 2) : 0;
+  const mixedBaseDays = Math.max(0, mixedPlannedDays - mixedBoostDays);
+  const mixedBoostRatio = 1.5;
+  const mixedIdealBaseExtra = mixedBoostDays > 0 && mixedBaseDays > 0
+    ? Math.ceil(shortageMinutes / (mixedBoostDays * mixedBoostRatio + mixedBaseDays))
+    : 0;
+  const mixedBoostExtra = mixedIdealBaseExtra > 0
+    ? Math.min(maxExtraPerDayMinutes, Math.ceil(mixedIdealBaseExtra * mixedBoostRatio))
+    : 0;
+  // If the boost days hit the daily cap, the base days have to absorb what is left
+  const mixedBaseExtra = mixedIdealBaseExtra > 0
     ? Math.min(
-        remainingWeekdays,
-        Math.max(2, Math.ceil(shortageMinutes / Math.max(1, Math.floor((mixedBaseExtra + mixedBoostExtra) / 2)))),
+        maxExtraPerDayMinutes,
+        Math.max(
+          mixedIdealBaseExtra,
+          Math.ceil((shortageMinutes - mixedBoostDays * mixedBoostExtra) / mixedBaseDays),
+        ),
       )
     : 0;
-  const mixedBoostDays = mixedPlannedDays > 0 && mixedBoostExtra > mixedBaseExtra
-    ? Math.max(0, Math.min(
-        mixedPlannedDays,
-        Math.ceil((shortageMinutes - mixedPlannedDays * mixedBaseExtra) / (mixedBoostExtra - mixedBaseExtra)),
-      ))
-    : 0;
-  const mixedBaseDays = Math.max(0, mixedPlannedDays - mixedBoostDays);
   const mixedRecoveredMinutes = mixedBoostDays * mixedBoostExtra + mixedBaseDays * mixedBaseExtra;
   const mixedDaysNeeded = mixedPlannedDays;
+  const dayLabel = (days: number) => (days === 1 ? 'day' : 'days');
+  // A mix only makes sense when both a boost block and a lighter base block actually exist
   const mixedPlanValid = shortageMinutes > 0
+    && mixedBoostDays > 0
+    && mixedBaseDays > 0
+    && mixedBoostExtra > mixedBaseExtra
     && mixedRecoveredMinutes >= shortageMinutes
     && mixedDaysNeeded <= remainingWeekdays
     && mixedBoostExtra <= maxExtraPerDayMinutes;
@@ -227,7 +249,7 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
                   </div>
                   <p className="text-sm font-semibold text-slate-200">
                     Stay <strong className={`${styles.highlight} font-bold`}>{formatMinutes(plan.extraPerDay)} extra</strong> daily for{' '}
-                    <strong className="text-white font-bold">{plan.daysNeeded}</strong> working days.
+                    <strong className="text-white font-bold">{plan.daysNeeded}</strong> working {dayLabel(plan.daysNeeded)}.
                   </p>
                 </div>
                 <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs text-slate-400">
@@ -251,13 +273,13 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
                 </div>
                 <p className="text-sm font-semibold text-slate-200">
                   Stay <strong className="text-violet-400 font-bold">{formatMinutes(mixedBoostExtra)} extra</strong> on{' '}
-                  <strong className="text-white font-bold">{mixedBoostDays} days</strong> and{' '}
+                  <strong className="text-white font-bold">{mixedBoostDays} {dayLabel(mixedBoostDays)}</strong> and{' '}
                   <strong className="text-indigo-400 font-bold">{formatMinutes(mixedBaseExtra)} extra</strong> on{' '}
-                  <strong className="text-white font-bold">{mixedBaseDays} days</strong>.
+                  <strong className="text-white font-bold">{mixedBaseDays} {dayLabel(mixedBaseDays)}</strong>.
                 </p>
               </div>
               <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs text-slate-400">
-                <span>Total schedule: {mixedDaysNeeded} working days</span>
+                <span>Total schedule: {mixedDaysNeeded} working {dayLabel(mixedDaysNeeded)}</span>
                 <span className="text-emerald-400 font-semibold">No leave deduction</span>
               </div>
             </GlassCard>

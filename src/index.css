@@ -48,6 +48,17 @@
   ============================================================
 */
 @layer utilities {
+  /* --- Hide native number input spinners --- */
+  .no-spinner::-webkit-outer-spin-button,
+  .no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .no-spinner {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   /* --- Page shell: let the body gradient shine through --- */
   .light .bg-slate-900 { background-color: transparent !important; }
   .light .bg-slate-950 { background-color: rgba(255, 255, 255, 0.75) !important; }

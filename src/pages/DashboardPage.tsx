@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { 
   TrendingUp, 
   Calendar, 
@@ -13,7 +13,8 @@ import {
   PlusCircle,
   Check,
   Calculator,
-  Eraser
+  Eraser,
+  X
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
 import { CountUp, CountUpMinutes } from '../components/CountUp';
@@ -23,7 +24,7 @@ interface DashboardPageProps {
   stats: any;
   settings: any;
   setActiveTab: (tab: string) => void;
-  applyPastedHours: (entries: number[]) => void;
+  applyPastedHours: (entries: number[]) => number;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -56,30 +57,93 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const [copied, setCopied] = useState(false);
 
-  // Quick paste calculator state
+  // Toast shown when weekday zeros in the pasted series are detected as leave days
+  const [leaveToast, setLeaveToast] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (leaveToast === null) return;
+    const timer = window.setTimeout(() => setLeaveToast(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [leaveToast]);
+
+  // Quick paste calculator state - never restored, every visit starts clean
   const [pasteInput, setPasteInput] = useState(() => {
-    const savedInput = sessionStorage.getItem(QUICK_INPUT_SESSION_KEY);
-    return savedInput ?? '';
+    // Drop anything saved by previous versions of the app
+    sessionStorage.removeItem(QUICK_INPUT_SESSION_KEY);
+    localStorage.removeItem(QUICK_INPUT_SESSION_KEY);
+    return '';
   });
   const [pasteResult, setPasteResult] = useState<ReturnType<typeof parsePastedHours> | null>(null);
 
-  useEffect(() => {
-    sessionStorage.setItem(QUICK_INPUT_SESSION_KEY, pasteInput);
-  }, [pasteInput]);
-
   const dailyTargetMinutes = settings.dailyTargetMinutes || 480;
+
+  // Leave <-> hours converter (1.0 leave = 8h 00m)
+  const LEAVE_UNIT_MINUTES = 480;
+  const [leaveInput, setLeaveInput] = useState('1');
+  const [hoursPart, setHoursPart] = useState('8');
+  const [minutesPart, setMinutesPart] = useState('0');
+
+  const trimNumber = (value: number, decimals: number) => Number(value.toFixed(decimals)).toString();
+
+  const handleLeaveInputChange = (value: string) => {
+    setLeaveInput(value);
+    const parsed = parseFloat(value);
+    if (!Number.isFinite(parsed)) {
+      setHoursPart('');
+      setMinutesPart('');
+      return;
+    }
+    const totalMinutes = Math.round(parsed * LEAVE_UNIT_MINUTES);
+    setHoursPart(String(Math.floor(Math.abs(totalMinutes) / 60) * Math.sign(totalMinutes || 1)));
+    setMinutesPart(String(Math.abs(totalMinutes) % 60));
+  };
+
+  const syncLeaveFromParts = (hours: string, minutes: string) => {
+    const h = parseFloat(hours);
+    const m = parseFloat(minutes);
+    if (!Number.isFinite(h) && !Number.isFinite(m)) {
+      setLeaveInput('');
+      return;
+    }
+    const totalMinutes = (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+    setLeaveInput(trimNumber(totalMinutes / LEAVE_UNIT_MINUTES, 4));
+  };
+
+  const handleHoursPartChange = (value: string) => {
+    setHoursPart(value);
+    syncLeaveFromParts(value, minutesPart);
+  };
+
+  const handleMinutesPartChange = (value: string) => {
+    setMinutesPart(value);
+    syncLeaveFromParts(hoursPart, value);
+  };
+
+  const leaveInputValue = parseFloat(leaveInput);
+  const hoursPartValue = parseFloat(hoursPart);
+  const minutesPartValue = parseFloat(minutesPart);
+  const leaveAsMinutes = Number.isFinite(leaveInputValue)
+    ? Math.round(leaveInputValue * LEAVE_UNIT_MINUTES)
+    : null;
+  const partsAsMinutes = Number.isFinite(hoursPartValue) || Number.isFinite(minutesPartValue)
+    ? (Number.isFinite(hoursPartValue) ? hoursPartValue : 0) * 60 + (Number.isFinite(minutesPartValue) ? minutesPartValue : 0)
+    : null;
+  const hoursAsLeave = partsAsMinutes !== null ? partsAsMinutes / LEAVE_UNIT_MINUTES : null;
+  // 1.0 leave = 1 working day (8h 00m)
+  const formatDays = (value: number) => `${trimNumber(value, 2)} ${Math.abs(value) === 1 ? 'day' : 'days'}`;
 
   const handleCalculatePaste = () => {
     const result = parsePastedHours(pasteInput, dailyTargetMinutes);
     setPasteResult(result);
     // Feed the parsed hours into the dashboard stats
-    applyPastedHours(result.entries);
+    const leaveDaysDetected = applyPastedHours(result.entries);
+    setLeaveToast(leaveDaysDetected > 0 ? leaveDaysDetected : null);
   };
 
   const handleClearPaste = () => {
     setPasteInput('');
     setPasteResult(null);
-    sessionStorage.removeItem(QUICK_INPUT_SESSION_KEY);
+    setLeaveToast(null);
     // Also wipe all dashboard data
     applyPastedHours([]);
   };
@@ -107,7 +171,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 🏖️ Leave Credit: ${remainingLeaveBalance.toFixed(3)} leaves (${formatMinutes(Math.round(remainingLeaveMinutes))} remaining)
 🔮 Month-End Forecast: ${expectedMonthEndStatus >= 0 ? '🟢 Surplus' : '🔴 Shortage'} of ${formatMinutes(Math.abs(expectedMonthEndStatus))}
 
-${isAhead ? '🎉 Back on track! Great job Shubham!' : `💪 Recovery requirement: Stay ${minutesNeededDailyToRecover}m extra daily for the remaining ${remainingWeekdays} working days.`}
+${isAhead ? '🎉 Back on track! Great job Shubham!' : `💪 Recovery requirement: Stay ${formatMinutes(minutesNeededDailyToRecover)} extra daily for the remaining ${remainingWeekdays} working days.`}
     `;
 
     navigator.clipboard.writeText(reportText).then(() => {
@@ -128,6 +192,40 @@ ${isAhead ? '🎉 Back on track! Great job Shubham!' : `💪 Recovery requiremen
 
   return (
     <div className="space-y-6">
+      {/* Leave detected toast (top-right) */}
+      <AnimatePresence>
+        {leaveToast !== null && (
+          <motion.div
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 40 }}
+            transition={{ duration: 0.25 }}
+            role="status"
+            className="fixed top-6 right-6 z-50 max-w-xs flex items-start gap-3 p-4 rounded-xl bg-slate-900/95 border border-purple-500/30 shadow-xl shadow-black/40 backdrop-blur"
+          >
+            <div className="p-1.5 bg-purple-500/15 rounded-lg text-purple-300 border border-purple-500/25 flex-shrink-0">
+              <Palmtree className="w-4 h-4" />
+            </div>
+            <div className="text-xs text-slate-200 leading-relaxed">
+              <p className="font-bold text-white mb-0.5">
+                {leaveToast} leave {leaveToast === 1 ? 'day' : 'days'} detected
+              </p>
+              <p className="text-slate-400">
+                A <strong className="text-white">0 min</strong> entry on a weekday was counted as leave
+                ({formatMinutes(leaveToast * LEAVE_UNIT_MINUTES)} deducted from your balance).
+              </p>
+            </div>
+            <button
+              onClick={() => setLeaveToast(null)}
+              aria-label="Dismiss"
+              className="text-slate-500 hover:text-white transition-colors flex-shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Hello Greeting Header */}
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
@@ -163,7 +261,7 @@ ${isAhead ? '🎉 Back on track! Great job Shubham!' : `💪 Recovery requiremen
                 ) : (
                   <span>
                     {remainingWeekdays > 0 ? (
-                      <>Only <span className="text-emerald-400 font-bold">{minutesNeededDailyToRecover}m</span> extra daily needed to finish strong 💪</>
+                      <>Only <span className="text-emerald-400 font-bold">{formatMinutes(minutesNeededDailyToRecover)}</span> extra daily needed to finish strong 💪</>
                     ) : (
                       <>Month end reached. Try simulating leaves to manage shortage! 🏖</>
                     )}
@@ -518,6 +616,86 @@ ${isAhead ? '🎉 Back on track! Great job Shubham!' : `💪 Recovery requiremen
                 </p>
               </div>
             )}
+
+            {/* Leave <-> Hours converter */}
+            <div className="mt-4 pt-4 border-t border-white/10 dark:border-white/5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                  Leave / Hours Converter
+                </span>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  1.0 leave = {formatMinutes(LEAVE_UNIT_MINUTES)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 bg-slate-900/30 rounded-xl p-4 border border-white/5">
+                <div className="text-center py-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider" htmlFor="leave-to-hours">
+                    Leave
+                  </label>
+                  <input
+                    id="leave-to-hours"
+                    type="number"
+                    min="0"
+                    step="0.125"
+                    inputMode="decimal"
+                    value={leaveInput}
+                    onChange={(e) => handleLeaveInputChange(e.target.value)}
+                    placeholder="1.0"
+                    className="no-spinner mt-1 w-full bg-slate-950/50 border border-white/10 rounded-lg px-2 py-1.5 text-center text-lg font-bold text-white outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30"
+                  />
+                  <span className="block text-xs text-emerald-300 mt-1.5 font-semibold">
+                    {leaveAsMinutes !== null ? formatMinutes(leaveAsMinutes) : '—'}
+                  </span>
+                  <span className="block text-[10px] text-slate-500 mt-0.5 font-semibold">
+                    {leaveAsMinutes !== null ? `= ${formatDays(leaveAsMinutes / LEAVE_UNIT_MINUTES)}` : ''}
+                  </span>
+                </div>
+
+                <div className="text-center py-1 border-l border-white/10 pl-4">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                    Hours / Minutes
+                  </span>
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        value={hoursPart}
+                        onChange={(e) => handleHoursPartChange(e.target.value)}
+                        placeholder="8"
+                        aria-label="Hours"
+                        className="no-spinner w-full bg-slate-950/50 border border-white/10 rounded-lg pl-2 pr-5 py-1.5 text-center text-lg font-bold text-white outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30"
+                      />
+                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500">h</span>
+                    </div>
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        min="0"
+                        max="59"
+                        step="1"
+                        inputMode="numeric"
+                        value={minutesPart}
+                        onChange={(e) => handleMinutesPartChange(e.target.value)}
+                        placeholder="30"
+                        aria-label="Minutes"
+                        className="no-spinner w-full bg-slate-950/50 border border-white/10 rounded-lg pl-2 pr-5 py-1.5 text-center text-lg font-bold text-white outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30"
+                      />
+                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500">m</span>
+                    </div>
+                  </div>
+                  <span className="block text-xs text-purple-300 mt-1.5 font-semibold">
+                    {hoursAsLeave !== null ? `${trimNumber(hoursAsLeave, 3)} leave` : '—'}
+                  </span>
+                  <span className="block text-[10px] text-slate-500 mt-0.5 font-semibold">
+                    {hoursAsLeave !== null ? `= ${formatDays(hoursAsLeave)}` : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </GlassCard>
       </div>

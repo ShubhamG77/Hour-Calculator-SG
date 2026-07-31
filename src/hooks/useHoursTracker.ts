@@ -61,10 +61,11 @@ export function useHoursTracker() {
     };
   });
 
-  // Daily logs state
+  // Daily logs state - intentionally NOT persisted, so every page load starts clean
   const [logs, setLogs] = useState<Record<string, DayLog>>(() => {
-    const saved = localStorage.getItem(LOGS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
+    // Drop any logs saved by previous versions of the app
+    localStorage.removeItem(LOGS_STORAGE_KEY);
+    return {};
   });
 
   // Simulated leaves (in hours) for Simulator view
@@ -99,11 +100,6 @@ export function useHoursTracker() {
   useEffect(() => {
     sessionStorage.setItem(SESSION_USER_NAME_KEY, settings.userName);
   }, [settings.userName]);
-
-  // Persist logs to localStorage
-  useEffect(() => {
-    localStorage.setItem(LOGS_STORAGE_KEY, JSON.stringify(logs));
-  }, [logs]);
 
   // Update a single log
   const updateLog = (dateString: string, minutesWorked: number, isLeave: boolean, leaveHours: number, notes?: string) => {
@@ -187,30 +183,15 @@ export function useHoursTracker() {
         addWorkLog(key, mins);
       });
     } else {
-      // Analyze zero runs to infer whether weekends are included in the pasted text.
-      const zeroRuns: number[] = [];
-      let runLength = 0;
-      entries.forEach((mins) => {
-        if (mins <= 0) {
-          runLength += 1;
-          return;
-        }
-        if (runLength > 0) {
-          zeroRuns.push(runLength);
-          runLength = 0;
-        }
-      });
-      if (runLength > 0) zeroRuns.push(runLength);
-
-      const hasWeekendPattern = zeroRuns.some((run) => run >= 2);
-
       let weekdayCursor = 0;
       let pendingZeroRun = 0;
 
       const consumeZeroRunAsLeave = () => {
         if (pendingZeroRun === 0) return;
 
-        const leaveDays = hasWeekendPattern
+        // A run of 2+ zeros is a weekend (the extra zeros beyond it are leaves).
+        // A single zero sitting between working days is a leave day.
+        const leaveDays = pendingZeroRun >= 2
           ? Math.max(0, pendingZeroRun - 2)
           : pendingZeroRun;
 
@@ -245,6 +226,9 @@ export function useHoursTracker() {
 
     setLogs(newLogs);
     setSimulatedLeaves(0);
+
+    // Number of weekday leaves detected in the pasted series
+    return Object.values(newLogs).filter((log) => log.isLeave).length;
   };
 
   // Load demo mock data (specifically July 1 to 14, 2026)
