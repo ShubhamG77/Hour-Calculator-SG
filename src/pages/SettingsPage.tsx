@@ -10,6 +10,7 @@ import {
   Info
 } from 'lucide-react';
 import { GlassCard } from '../components/GlassCard';
+import { WeatherSelector } from '../components/WeatherSelector';
 import { Settings } from '../hooks/useHoursTracker';
 
 interface SettingsPageProps {
@@ -94,6 +95,21 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           </div>
 
+          {/* Ambient Weather Effect */}
+          <div className="space-y-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              Ambient Weather
+            </span>
+            <WeatherSelector
+              value={settings.weather}
+              onChange={(weather) => updateSettings({ weather })}
+            />
+            <span className="text-[10px] text-slate-500 block">
+              A subtle overlay on top of the app. Motion is reduced automatically when your
+              system requests it.
+            </span>
+          </div>
+
           {/* Target Hour Configuration Notice */}
           <div className="flex gap-2 p-3 bg-white/5 border border-white/10 rounded-xl text-xs text-slate-400">
             <Info className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -115,7 +131,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         </div>
 
         <p className="text-xs text-slate-400 leading-relaxed mb-4">
-          Use the quick-seed tool below to load sample logs from July 1 to July 14, 2026. This allows you to evaluate 
+          Use the quick-seed tool below to load sample logs into the working days of the current month. This allows you to evaluate 
           the calendar color coding, recovery planner, forecast calculators, and charts with realistic mock logs.
         </p>
 
@@ -125,7 +141,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             onClick={loadMockData}
             className="w-full py-3 bg-slate-800 border border-white/10 hover:bg-slate-700 active:scale-[0.99] text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all text-xs"
           >
-            <Sparkles className="w-4 h-4 text-emerald-400" /> Seed Demo Mock Data (July 2026)
+            <Sparkles className="w-4 h-4 text-emerald-400" /> Seed Demo Mock Data (Current Month)
           </button>
           
           <button

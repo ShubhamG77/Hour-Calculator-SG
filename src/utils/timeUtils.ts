@@ -97,6 +97,15 @@ export function parsePastedHours(text: string, dailyTargetMinutes: number): Past
 }
 
 /**
+ * Current date normalised to midnight so date-only comparisons are safe.
+ */
+export function getToday(): Date {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+/**
  * Check if a date falls on a weekend (Saturday or Sunday).
  */
 export function isWeekend(date: Date): boolean {

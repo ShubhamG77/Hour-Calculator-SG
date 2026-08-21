@@ -27,6 +27,7 @@ import { GlassCard } from '../components/GlassCard';
 import { 
   getMonthWeekdays, 
   getDateString, 
+  getToday, 
   formatMinutes 
 } from '../utils/timeUtils';
 import { DayLog } from '../hooks/useHoursTracker';
@@ -89,7 +90,8 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
   let cumulativeTarget = 0;
   let cumulativeCompleted = 0;
   let hasPassedToday = false;
-  const todayStr = getDateString(new Date(2026, 6, 14)); // July 14, 2026
+  const today = getToday();
+  const todayStr = getDateString(today);
   
   const cumulativeData = weekdays.map((d) => {
     const key = getDateString(d);
@@ -99,7 +101,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     cumulativeTarget += 8.0;
     
     // Check if day is <= today
-    const dateIsPastOrToday = d <= new Date(2026, 6, 14);
+    const dateIsPastOrToday = d <= today;
     
     if (dateIsPastOrToday) {
       if (log) {
@@ -128,7 +130,7 @@ export const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
     const key = getDateString(d);
     const log = logs[key];
     const dateLabel = d.getDate();
-    const dateIsPastOrToday = d <= new Date(2026, 6, 14);
+    const dateIsPastOrToday = d <= today;
 
     if (dateIsPastOrToday) {
       if (log) {

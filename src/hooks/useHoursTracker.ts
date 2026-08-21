@@ -4,9 +4,11 @@ import {
   getYearMonthKey, 
   getMonthDays,
   getMonthWeekdays, 
+  getToday,
   isWeekend, 
   formatMinutes 
 } from '../utils/timeUtils';
+import type { WeatherType } from '../components/WeatherEffect';
 
 export interface DayLog {
   date: string; // YYYY-MM-DD
@@ -20,12 +22,14 @@ export interface Settings {
   userName: string;
   dailyTargetMinutes: number;
   theme: 'light' | 'dark';
+  weather: WeatherType;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   userName: '',
   dailyTargetMinutes: 480, // 8 hours
   theme: 'dark',
+  weather: 'default',
 };
 
 const SETTINGS_STORAGE_KEY = 'shubham_tracker_settings';
@@ -71,17 +75,15 @@ export function useHoursTracker() {
   // Simulated leaves (in hours) for Simulator view
   const [simulatedLeaves, setSimulatedLeaves] = useState<number>(0);
 
-  // Selected date state (defaults to July 14, 2026, as specified in current local time metadata)
-  const [selectedDate, setSelectedDate] = useState<Date>(() => {
-    // Return July 14, 2026
-    return new Date(2026, 6, 14); // month index 6 is July
-  });
+  // Selected date state (defaults to the real current date)
+  const [selectedDate, setSelectedDate] = useState<Date>(() => getToday());
 
   // Persist non-session settings to localStorage
   useEffect(() => {
     const persistentSettings = {
       theme: settings.theme,
       dailyTargetMinutes: settings.dailyTargetMinutes,
+      weather: settings.weather,
     };
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(persistentSettings));
 
@@ -231,22 +233,39 @@ export function useHoursTracker() {
     return Object.values(newLogs).filter((log) => log.isLeave).length;
   };
 
-  // Load demo mock data (specifically July 1 to 14, 2026)
+  // Load demo mock data onto the weekdays of the selected month, up to today
   const loadMockData = () => {
-    const mockLogs: Record<string, DayLog> = {
-      '2026-07-01': { date: '2026-07-01', minutesWorked: 480, isLeave: false, leaveHours: 0, notes: 'Target achieved' },
-      '2026-07-02': { date: '2026-07-02', minutesWorked: 450, isLeave: false, leaveHours: 0, notes: '30m short today' },
-      '2026-07-03': { date: '2026-07-03', minutesWorked: 495, isLeave: false, leaveHours: 0, notes: 'Stayed late to cover' },
-      // July 4-5 are weekends (Saturday/Sunday)
-      '2026-07-06': { date: '2026-07-06', minutesWorked: 510, isLeave: false, leaveHours: 0, notes: 'Finished project release' },
-      '2026-07-07': { date: '2026-07-07', minutesWorked: 465, isLeave: false, leaveHours: 0, notes: 'Left slightly early' },
-      '2026-07-08': { date: '2026-07-08', minutesWorked: 480, isLeave: false, leaveHours: 0, notes: 'Standard day' },
-      '2026-07-09': { date: '2026-07-09', minutesWorked: 390, isLeave: false, leaveHours: 0, notes: 'Had doctor appointment' },
-      '2026-07-10': { date: '2026-07-10', minutesWorked: 480, isLeave: false, leaveHours: 0, notes: 'Friday wrap-up' },
-      // July 11-12 are weekends
-      '2026-07-13': { date: '2026-07-13', minutesWorked: 300, isLeave: false, leaveHours: 0, notes: 'Short on hours' },
-      '2026-07-14': { date: '2026-07-14', minutesWorked: 480, isLeave: false, leaveHours: 0, notes: 'Completed full hours today' }
-    };
+    const demoMinutes = [480, 450, 495, 510, 465, 480, 390, 480, 300, 480];
+    const demoNotes = [
+      'Target achieved',
+      '30m short today',
+      'Stayed late to cover',
+      'Finished project release',
+      'Left slightly early',
+      'Standard day',
+      'Had doctor appointment',
+      'Friday wrap-up',
+      'Short on hours',
+      'Completed full hours today',
+    ];
+
+    const today = getToday();
+    const weekdays = getMonthWeekdays(selectedDate.getFullYear(), selectedDate.getMonth())
+      .filter((d) => d <= today)
+      .slice(0, demoMinutes.length);
+
+    const mockLogs: Record<string, DayLog> = {};
+    weekdays.forEach((day, index) => {
+      const key = getDateString(day);
+      mockLogs[key] = {
+        date: key,
+        minutesWorked: demoMinutes[index],
+        isLeave: false,
+        leaveHours: 0,
+        notes: demoNotes[index],
+      };
+    });
+
     setLogs(mockLogs);
     setSimulatedLeaves(0);
   };
@@ -273,7 +292,14 @@ export function useHoursTracker() {
     });
     
     const completedWeekdays = completedWeekdaysList.length;
-    const remainingWeekdays = totalWeekdays - completedWeekdays;
+
+    // Remaining working days come from the real calendar: only weekdays that are still
+    // ahead of today (today itself is already worked) and have no log yet.
+    const today = getToday();
+    const remainingWeekdays = weekdaysInMonth.filter((d) => {
+      if (d <= today) return false;
+      return logs[getDateString(d)] === undefined;
+    }).length;
     
     // Target calculations
     const dailyTarget = settings.dailyTargetMinutes;

@@ -1,0 +1,454 @@
+/*
+  ============================================================
+  WeatherEffect — ambient weather overlay
+  ------------------------------------------------------------
+  All particles are driven purely by CSS keyframes animating
+  `transform` / `opacity` only (compositor friendly).
+  Per-particle randomness is injected from React through CSS
+  custom properties, so React never re-renders during playback.
+  ============================================================
+*/
+
+.we-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  overflow: hidden;
+  /* Isolate the overlay so it can never affect page layout/paint */
+  contain: layout style paint;
+  animation: we-fade-in 600ms ease-out both;
+}
+
+@keyframes we-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Groups keep each particle family in its own stacking/nth-child scope. */
+.we-group {
+  position: absolute;
+  inset: 0;
+}
+
+.we-particle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+/* ============================================================
+   RAIN — droplets on a glass pane + fine falling streaks
+   ============================================================ */
+
+/* Barely-there sheen so the viewport reads as a wet pane of glass.
+   Intentionally no backdrop blur on the full surface: page text
+   must stay perfectly crisp. */
+.we-rain__glass {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(186, 230, 253, 0.07), transparent 60%),
+    linear-gradient(200deg, rgba(255, 255, 255, 0.035) 0%, transparent 35%, rgba(148, 197, 255, 0.03) 100%);
+  opacity: 0.9;
+}
+
+/* --- Falling streaks --- */
+.we-rain__streak {
+  width: 1px;
+  height: var(--len, 60px);
+  border-radius: 1px;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0),
+    rgba(214, 236, 255, 0.55) 60%,
+    rgba(255, 255, 255, 0.75)
+  );
+  animation: we-rain-streak var(--dur, 0.8s) linear var(--delay, 0s) infinite;
+}
+
+@keyframes we-rain-streak {
+  0% {
+    transform: translate3d(var(--x), -18vh, 0) rotate(var(--tilt, 4deg));
+    opacity: 0;
+  }
+  8% { opacity: var(--o, 0.5); }
+  88% { opacity: var(--o, 0.5); }
+  100% {
+    transform: translate3d(calc(var(--x) + var(--drift, 24px)), 112vh, 0) rotate(var(--tilt, 4deg));
+    opacity: 0;
+  }
+}
+
+/* --- Static droplets clinging to the "glass" --- */
+.we-rain__drop {
+  width: var(--size, 5px);
+  height: var(--size, 5px);
+  border-radius: 50%;
+  transform: translate3d(var(--x), var(--y), 0);
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.18) 45%, rgba(255, 255, 255, 0.02) 72%),
+    radial-gradient(circle at 68% 78%, rgba(191, 219, 254, 0.35), transparent 60%);
+  box-shadow:
+    inset 0 -0.5px 1px rgba(255, 255, 255, 0.45),
+    0 1px 2px rgba(2, 6, 23, 0.22);
+  opacity: var(--o, 0.55);
+  animation: we-drop-shimmer var(--dur, 9s) ease-in-out var(--delay, 0s) infinite;
+}
+
+@keyframes we-drop-shimmer {
+  0%, 100% { opacity: calc(var(--o, 0.55) * 0.7); }
+  50% { opacity: var(--o, 0.55); }
+}
+
+/* Real refraction only where it is cheap enough (pointer/large screens). */
+@media (min-width: 768px) {
+  .we-rain__drop {
+    -webkit-backdrop-filter: blur(1px) saturate(1.15);
+    backdrop-filter: blur(1px) saturate(1.15);
+  }
+}
+
+/* --- Droplets that slowly slide down leaving a wet trail --- */
+.we-rain__slider {
+  width: var(--size, 6px);
+  height: calc(var(--size, 6px) * 1.15);
+  border-radius: 50% 50% 48% 48%;
+  background:
+    radial-gradient(circle at 34% 26%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.2) 48%, rgba(255, 255, 255, 0.03) 74%);
+  box-shadow:
+    inset 0 -0.5px 1px rgba(255, 255, 255, 0.5),
+    0 1px 2px rgba(2, 6, 23, 0.25);
+  animation: we-rain-slide var(--dur, 7s) cubic-bezier(0.55, 0.02, 0.72, 0.35) var(--delay, 0s) infinite;
+}
+
+/* The trail is a child pseudo element so it inherits the same transform. */
+.we-rain__slider::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 60%;
+  width: 1px;
+  height: var(--trail, 70px);
+  transform: translateX(-50%);
+  background: linear-gradient(to top, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
+  border-radius: 1px;
+}
+
+@keyframes we-rain-slide {
+  0% {
+    transform: translate3d(var(--x), var(--y), 0);
+    opacity: 0;
+  }
+  12% { opacity: var(--o, 0.6); }
+  80% { opacity: var(--o, 0.6); }
+  100% {
+    transform: translate3d(calc(var(--x) + var(--wobble, 4px)), calc(var(--y) + var(--fall, 45vh)), 0);
+    opacity: 0;
+  }
+}
+
+/* ============================================================
+   WIND — long curved gusts plus a few airborne motes
+   ============================================================ */
+
+.we-wind__streak {
+  width: var(--len, 120px);
+  height: var(--thickness, 1.5px);
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(226, 240, 255, 0.5) 45%,
+    rgba(255, 255, 255, 0.75) 70%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: we-wind-gust var(--dur, 7s) cubic-bezier(0.4, 0, 0.5, 1) var(--delay, 0s) infinite;
+}
+
+/* Gusts snake across the screen instead of sliding in a straight line. */
+@keyframes we-wind-gust {
+  0% {
+    transform: translate3d(-30vw, var(--y), 0) scaleX(0.55);
+    opacity: 0;
+  }
+  10% { opacity: var(--o, 0.45); }
+  25% {
+    transform: translate3d(10vw, calc(var(--y) - var(--zig, 20px)), 0) scaleX(1);
+  }
+  45% {
+    transform: translate3d(45vw, calc(var(--y) + var(--zig, 20px)), 0) scaleX(1);
+  }
+  65% {
+    transform: translate3d(75vw, calc(var(--y) - var(--zig, 20px) * 0.7), 0) scaleX(1);
+  }
+  85% { opacity: var(--o, 0.45); }
+  100% {
+    transform: translate3d(130vw, calc(var(--y) + var(--rise, 10px)), 0) scaleX(0.7);
+    opacity: 0;
+  }
+}
+
+.we-wind__mote {
+  width: var(--size, 2px);
+  height: var(--size, 2px);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  animation: we-wind-mote var(--dur, 9s) linear var(--delay, 0s) infinite;
+}
+
+@keyframes we-wind-mote {
+  0% {
+    transform: translate3d(-10vw, var(--y), 0);
+    opacity: 0;
+  }
+  15% { opacity: var(--o, 0.4); }
+  30% { transform: translate3d(20vw, calc(var(--y) - var(--sway, 18px)), 0); }
+  45% { transform: translate3d(40vw, calc(var(--y) + var(--sway, 18px)), 0); }
+  60% { transform: translate3d(60vw, calc(var(--y) - var(--sway, 18px)), 0); }
+  75% { transform: translate3d(80vw, calc(var(--y) + var(--sway, 18px) * 0.6), 0); }
+  85% { opacity: var(--o, 0.4); }
+  100% {
+    transform: translate3d(112vw, var(--y), 0);
+    opacity: 0;
+  }
+}
+
+/* --- Swirling air rings: flattened, slowly spinning vortex arcs --- */
+.we-wind__ring {
+  width: var(--size, 140px);
+  height: var(--size, 140px);
+  border-radius: 50%;
+  border: var(--thickness, 1.2px) solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.55);
+  border-right-color: rgba(226, 240, 255, 0.2);
+  border-left-color: rgba(226, 240, 255, 0.08);
+  animation: we-wind-ring var(--dur, 12s) linear var(--delay, 0s) infinite;
+}
+
+@keyframes we-wind-ring {
+  0% {
+    transform: translate3d(-30vw, var(--y), 0) rotate(var(--spin, 0deg))
+      scaleY(var(--flat, 0.4)) scale(0.7);
+    opacity: 0;
+  }
+  14% { opacity: var(--o, 0.26); }
+  50% {
+    transform: translate3d(45vw, calc(var(--y) + var(--arc, -18px)), 0)
+      rotate(calc(var(--spin, 0deg) + var(--turn, 180deg)))
+      scaleY(var(--flat, 0.4)) scale(1);
+  }
+  80% { opacity: var(--o, 0.26); }
+  100% {
+    transform: translate3d(132vw, calc(var(--y) + var(--rise, 12px)), 0)
+      rotate(calc(var(--spin, 0deg) + var(--turn, 180deg) * 2))
+      scaleY(var(--flat, 0.4)) scale(0.85);
+    opacity: 0;
+  }
+}
+
+/* --- Wind-blown debris: paper, polythene, leaves --------------------
+   The flight only occupies the first ~22% of the keyframe timeline; the
+   rest of the cycle is spent parked off-screen at opacity 0. Combined
+   with staggered delays this makes items pass by one at a time instead
+   of flying back to back.                                            */
+.we-wind__debris {
+  animation: we-debris-fly var(--dur, 34s) linear var(--delay, 0s) infinite;
+}
+
+@keyframes we-debris-fly {
+  0% {
+    transform: translate3d(-15vw, var(--y), 0);
+    opacity: 0;
+  }
+  2% { opacity: var(--o, 0.75); }
+  5.5% { transform: translate3d(10vw, calc(var(--y) - var(--zig, 40px)), 0); }
+  9% { transform: translate3d(32vw, calc(var(--y) + var(--zig, 40px) * 0.8), 0); }
+  12.5% { transform: translate3d(54vw, calc(var(--y) - var(--zig, 40px) * 1.2), 0); }
+  16% { transform: translate3d(76vw, calc(var(--y) + var(--zig, 40px) * 0.5), 0); }
+  20% { opacity: var(--o, 0.75); }
+  22% {
+    transform: translate3d(115vw, calc(var(--y) - var(--zig, 40px) * 0.3), 0);
+    opacity: 0;
+  }
+  100% {
+    transform: translate3d(115vw, var(--y), 0);
+    opacity: 0;
+  }
+}
+
+.we-wind__debris-body {
+  display: block;
+  width: var(--w, 12px);
+  height: var(--h, 9px);
+  will-change: transform;
+  animation: we-debris-tumble var(--tumble, 1.6s) linear infinite;
+}
+
+@keyframes we-debris-tumble {
+  from { transform: rotate3d(0.5, 1, 0.25, 0deg); }
+  to { transform: rotate3d(0.5, 1, 0.25, 360deg); }
+}
+
+/* A torn scrap of paper */
+.we-wind__debris-body--paper {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(203, 213, 225, 0.55));
+  border-radius: 1px 2px 1px 2px;
+  box-shadow: 0 1px 3px rgba(2, 6, 23, 0.3);
+}
+
+/* A limp polythene sheet: translucent, flutters rather than spins hard */
+.we-wind__debris-body--poly {
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.42), rgba(186, 230, 253, 0.28));
+  border: 0.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 60% 40% 55% 45% / 50% 62% 38% 50%;
+  animation-name: we-debris-flutter;
+}
+
+@keyframes we-debris-flutter {
+  0% { transform: rotate(-14deg) scale(1, 0.55) skewX(10deg); }
+  35% { transform: rotate(16deg) scale(0.8, 1) skewX(-12deg); }
+  70% { transform: rotate(-6deg) scale(1, 0.7) skewX(8deg); }
+  100% { transform: rotate(-14deg) scale(1, 0.55) skewX(10deg); }
+}
+
+/* A dry leaf */
+.we-wind__debris-body--leaf {
+  background: radial-gradient(circle at 30% 30%, rgba(190, 227, 168, 0.85), rgba(120, 113, 68, 0.7));
+  border-radius: 50% 0 50% 0;
+  box-shadow: 0 1px 2px rgba(2, 6, 23, 0.25);
+  animation-name: we-debris-flip;
+}
+
+@keyframes we-debris-flip {
+  from { transform: rotate3d(0.2, 1, 0.9, 0deg); }
+  to { transform: rotate3d(0.2, 1, 0.9, -360deg); }
+}
+
+/* ============================================================
+   SNOW — two nested transforms: vertical fall + lateral drift
+   ============================================================ */
+
+.we-snow__fall {
+  animation: we-snow-fall var(--dur, 14s) linear var(--delay, 0s) infinite;
+}
+
+@keyframes we-snow-fall {
+  0% { transform: translate3d(var(--x), -10vh, 0); opacity: 0; }
+  6% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translate3d(var(--x), 108vh, 0); opacity: 0; }
+}
+
+.we-snow__flake {
+  display: block;
+  width: var(--size, 4px);
+  height: var(--size, 4px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.55) 55%, rgba(255, 255, 255, 0.05) 80%);
+  opacity: var(--o, 0.7);
+  filter: blur(var(--soft, 0.2px));
+  will-change: transform;
+  animation: we-snow-drift var(--sway-dur, 5s) ease-in-out var(--delay, 0s) infinite alternate;
+}
+
+@keyframes we-snow-drift {
+  from { transform: translate3d(calc(var(--sway, 14px) * -1), 0, 0); }
+  to { transform: translate3d(var(--sway, 14px), 0, 0); }
+}
+
+/* ============================================================
+   Light theme — white particles vanish on a bright background,
+   so switch to cool slate/blue tints instead.
+   ============================================================ */
+
+.light .we-rain__streak {
+  background: linear-gradient(
+    to bottom,
+    rgba(51, 65, 85, 0),
+    rgba(51, 65, 85, 0.32) 60%,
+    rgba(30, 41, 59, 0.45)
+  );
+}
+
+.light .we-rain__drop,
+.light .we-rain__slider {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95), rgba(148, 178, 214, 0.35) 48%, rgba(100, 130, 170, 0.12) 76%);
+  box-shadow:
+    inset 0 -0.5px 1px rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(30, 41, 59, 0.18);
+}
+
+.light .we-rain__slider::after {
+  background: linear-gradient(to top, rgba(71, 85, 105, 0.22), rgba(71, 85, 105, 0));
+}
+
+.light .we-wind__streak {
+  background: linear-gradient(
+    to right,
+    rgba(71, 85, 105, 0) 0%,
+    rgba(71, 85, 105, 0.28) 45%,
+    rgba(51, 65, 85, 0.4) 70%,
+    rgba(71, 85, 105, 0) 100%
+  );
+}
+
+.light .we-wind__mote { background: rgba(71, 85, 105, 0.45); }
+
+.light .we-wind__ring {
+  border-top-color: rgba(51, 65, 85, 0.4);
+  border-right-color: rgba(71, 85, 105, 0.16);
+  border-left-color: rgba(71, 85, 105, 0.07);
+}
+
+.light .we-snow__flake {
+  background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 1), rgba(203, 225, 250, 0.85) 55%, rgba(148, 180, 214, 0.25) 82%);
+  box-shadow: 0 0 2px rgba(100, 140, 190, 0.35);
+}
+
+.light .we-rain__glass {
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(148, 197, 255, 0.12), transparent 60%),
+    linear-gradient(200deg, rgba(255, 255, 255, 0.28) 0%, transparent 38%, rgba(148, 197, 255, 0.08) 100%);
+}
+
+/* ============================================================
+   Responsive: thin the particle field out on small screens.
+   Uses CSS only, so viewport resizes need no JS bookkeeping.
+   ============================================================ */
+@media (max-width: 640px) {
+  .we-rain__streak:nth-child(3n),
+  .we-rain__drop:nth-child(3n),
+  .we-wind__mote:nth-child(3n),
+  .we-wind__ring:nth-child(2n),
+  .we-snow__fall:nth-child(3n) {
+    display: none;
+  }
+}
+
+/* ============================================================
+   Reduced motion: keep a whisper of atmosphere, drop all motion.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .we-layer,
+  .we-layer * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .we-rain__streak,
+  .we-rain__slider,
+  .we-wind__streak,
+  .we-wind__ring,
+  .we-wind__mote,
+  .we-wind__debris,
+  .we-snow__fall {
+    display: none;
+  }
+
+  .we-rain__drop { opacity: calc(var(--o, 0.55) * 0.75); }
+}

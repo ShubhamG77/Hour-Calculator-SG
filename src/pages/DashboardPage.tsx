@@ -161,7 +161,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     : 0;
 
   const handleShare = () => {
-    const reportText = `📊 Shubham Work Hours Tracker Summary (July 2026)
+    const monthLabel = new Date(stats.year, stats.monthIndex, 1)
+      .toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    const reportText = `📊 Shubham Work Hours Tracker Summary (${monthLabel})
 
 👤 Employee: ${settings.userName}
 🟢 Completed Hours: ${formatMinutes(completedMinutesTillToday)} / ${formatMinutes(requiredMinutesTillToday)} required

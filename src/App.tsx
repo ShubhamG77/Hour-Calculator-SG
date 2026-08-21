@@ -11,6 +11,8 @@ import {
 import { useHoursTracker } from './hooks/useHoursTracker';
 import { Sidebar } from './components/Sidebar';
 import { BottomNav } from './components/BottomNav';
+import { WeatherEffect } from './components/WeatherEffect';
+import { WeatherSelector } from './components/WeatherSelector';
 
 // Pages
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
@@ -210,6 +212,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex transition-colors duration-300 dark:bg-slate-950 light:bg-slate-50 light:text-slate-800">
+
+      {/* Ambient weather overlay (fixed, click-through, never affects layout) */}
+      <WeatherEffect type={settings.weather} />
       
       {/* Background Gradients for Glassmorphism Context */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
@@ -301,17 +306,25 @@ export default function App() {
               </p>
             </div>
             
-            {/* Show Seed Button on Dashboard if empty */}
-            {activeTab === 'dashboard' && Object.keys(logs).length === 0 && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                onClick={loadMockData}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400 text-slate-950 text-xs font-bold shadow hover:brightness-110 transition-all border border-emerald-300/30"
-              >
-                <Sparkles className="w-3.5 h-3.5" /> Seed Sample Logs
-              </motion.button>
-            )}
+            <div className="flex items-center gap-3">
+              <WeatherSelector
+                value={settings.weather}
+                onChange={(weather) => updateSettings({ weather })}
+                variant="compact"
+              />
+
+              {/* Show Seed Button on Dashboard if empty */}
+              {activeTab === 'dashboard' && Object.keys(logs).length === 0 && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  onClick={loadMockData}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400 text-slate-950 text-xs font-bold shadow hover:brightness-110 transition-all border border-emerald-300/30"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Seed Sample Logs
+                </motion.button>
+              )}
+            </div>
           </div>
 
           <AnimatePresence initial={false} mode="sync">

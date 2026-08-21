@@ -21,6 +21,9 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
     netMinutesStatusAbs,
   } = stats;
 
+  const monthLabel = new Date(stats.year, stats.monthIndex, 1)
+    .toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
   // Recovery target in minutes
   const shortageMinutes = isAhead ? 0 : netMinutesStatusAbs;
   const maxExtraPerDayMinutes = 480;
@@ -189,7 +192,7 @@ export const PlannerPage: React.FC<PlannerPageProps> = ({ stats }) => {
                 <CheckCircle className="w-5 h-5 flex-shrink-0" />
                 <div>
                   <h4 className="font-bold">Fantastic work!</h4>
-                  <p className="mt-0.5">You are ahead of your required work hours. No additional recovery is needed for July 2026.</p>
+                  <p className="mt-0.5">You are ahead of your required work hours. No additional recovery is needed for {monthLabel}.</p>
                 </div>
               </div>
             )}

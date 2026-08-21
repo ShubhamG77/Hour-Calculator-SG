@@ -14,6 +14,7 @@ import {
 import { GlassCard } from '../components/GlassCard';
 import { 
   getDateString, 
+  getToday, 
   formatMinutes, 
   parsePastedAttendance, 
   ParsedAttendanceResult 
@@ -34,7 +35,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   selectedDate,
 }) => {
   // Manual Entry State
-  const [manualDate, setManualDate] = useState<string>(() => getDateString(new Date(2026, 6, 14))); // July 14, 2026
+  const [manualDate, setManualDate] = useState<string>(() => getDateString(getToday()));
   const [manualHours, setManualHours] = useState<string>('8');
   const [manualMinutes, setManualMinutes] = useState<string>('0');
   const [manualIsLeave, setManualIsLeave] = useState<boolean>(false);
@@ -45,7 +46,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   const [pastedText, setPastedText] = useState<string>('');
   const [parsedResults, setParsedResults] = useState<ParsedAttendanceResult[]>([]);
   const [selectedImports, setSelectedImports] = useState<Record<string, boolean>>({});
-  const [baseDateInput, setBaseDateInput] = useState<string>(() => getDateString(new Date(2026, 6, 1))); // Default to start of July
+  const [baseDateInput, setBaseDateInput] = useState<string>(() => {
+    const today = getToday();
+    return getDateString(new Date(today.getFullYear(), today.getMonth(), 1));
+  });
 
   // Manual entry submission
   const handleManualSubmit = (e: React.FormEvent) => {
