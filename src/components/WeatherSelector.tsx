@@ -17,6 +17,7 @@ const OPTIONS: { id: WeatherType; label: string; icon: React.ElementType; tint: 
   { id: 'snow', label: 'Snow', icon: Snowflake, tint: 'text-indigo-300' },
 ];
 
+
 export const WeatherSelector: React.FC<WeatherSelectorProps> = ({
   value,
   onChange,
