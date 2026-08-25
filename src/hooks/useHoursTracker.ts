@@ -29,7 +29,7 @@ const DEFAULT_SETTINGS: Settings = {
   userName: '',
   dailyTargetMinutes: 480, // 8 hours
   theme: 'dark',
-  weather: 'default',
+  weather: 'snow',
 };
 
 const SETTINGS_STORAGE_KEY = 'shubham_tracker_settings';
